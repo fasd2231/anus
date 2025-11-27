@@ -3,69 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Movie</title>
+    <title>Watch</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://kinobox.tv/kinobox.min.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; height: 100vh; width: 100vw; }
-        .kinobox_player { width: 100%; height: 100%; }
-        
-        /* --- ХАКИ ДЛЯ СКРЫТИЯ ИНТЕРФЕЙСА KINOBOX --- */
-        
-        /* Скрываем верхнюю панель поиска и навигации, если она вдруг вылезет */
-        .kinobox-header, .kinobox-search, .kinobox-title { 
-            display: none !important; 
+        /* 1. Базовые настройки страницы */
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #000; 
+            width: 100%; 
+            height: 100%; 
+            overflow: hidden; /* Запрещаем скролл */
         }
 
-        /* Делаем фон идеально черным */
-        .kinobox-container {
-            background-color: #000 !important;
+        .kinobox_player { 
+            width: 100vw !important; 
+            height: 100vh !important; 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            z-index: 1;
+        }
+
+        /* 2. АГРЕССИВНОЕ СКРЫТИЕ ИНТЕРФЕЙСА KINOBOX */
+        /* Скрываем навигацию, поиск, футер, заголовок и постер */
+        .kinobox-navbar, 
+        .kinobox-header, 
+        .kinobox-footer, 
+        .kinobox-container-info, 
+        .kinobox-info,
+        .kb-header,
+        .kb-nav,
+        .kb-mobile-menu,
+        div[class*="info"], /* Любые блоки с информацией */
+        div[class*="poster"], /* Постеры */
+        div[class*="rating"] { /* Рейтинги */
+            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            width: 0 !important;
+        }
+
+        /* 3. Делаем контейнер плеера на весь экран */
+        .kinobox-container-video, 
+        .kinobox-iframe-wrapper,
+        iframe {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            z-index: 9999 !important;
+            background: #000;
+            border: none;
+        }
+
+        /* Спиннер загрузки (чтобы не смотреть в черный экран) */
+        #custom-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 10000;
+            display: flex; justify-content: center; align-items: center;
+            color: #555; font-family: sans-serif;
+            transition: opacity 0.5s;
         }
     </style>
 </head>
 <body>
+
+    <!-- Своя крутилка, пока грузится плеер -->
+    <div id="custom-loader">
+        <div>Загрузка фильма...</div>
+    </div>
+
     <div class="kinobox_player"></div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); 
+        tg.expand();
+        tg.enableClosingConfirmation();
 
         const urlParams = new URLSearchParams(window.location.search);
         const kpId = urlParams.get('id');
-        const imdbId = urlParams.get('imdb'); // На случай, если потом добавишь поиск по IMDB
+        const name = urlParams.get('name');
 
         if (kpId) {
             new Kinobox('.kinobox_player', {
                 search: {
-                    kinopoisk: kpId,
-                    // imdb: imdbId // можно добавить
+                    kinopoisk: kpId
                 },
                 menu: {
-                    // ГЛАВНАЯ ФИШКА:
-                    // Вместо 'menu_list' ставим 'menu_button'.
-                    // Теперь выбор озвучки спрятан в иконку шестеренки внутри плеера.
-                    // Пользователь видит только видео.
-                    default: 'menu_button',
-                    mobile: 'menu_button', 
-                    enable: true // Оставляем включенным, чтобы можно было сменить озвучку если лагает
+                    default: 'menu_button', // Скрываем список озвучек в кнопку
+                    mobile: 'menu_button',
+                    enable: true 
                 },
                 players: {
-                    // Приоритет плееров. Kodik ставим первым (он чище всех для сериалов/аниме)
-                    kodik: {enable: true, position: 1},
-                    alloha: {enable: true, position: 2},
+                    alloha: {enable: true, position: 1},
+                    kodik: {enable: true, position: 2},
                     videocdn: {enable: true, position: 3},
                     collaps: {enable: true, position: 4}
                 },
-                // Убираем лишние кнопки, если они есть
+                // Отключаем лишние модули интерфейса, если API позволяет
                 params: {
-                    all: {
-                        poster: 'https://via.placeholder.com/1920x1080/000000/000000' // Черный постер до загрузки
-                    }
+                    all: { control: false } 
                 }
             }).init();
-        } else {
-            document.body.innerHTML = '<div style="color:white; text-align:center; margin-top:50%;">ID фильма не найден</div>';
         }
+
+        // ХАК: Ждем появления iframe и убираем наш лоадер
+        const checkInterval = setInterval(() => {
+            const iframe = document.querySelector('iframe');
+            if (iframe) {
+                // Если появился плеер -> скрываем загрузку
+                document.getElementById('custom-loader').style.opacity = '0';
+                setTimeout(() => {
+                     document.getElementById('custom-loader').style.display = 'none';
+                }, 500);
+                clearInterval(checkInterval);
+            }
+        }, 300);
+
+        // Если через 10 секунд iframe не появился, возможно фильм не найден
+        setTimeout(() => {
+            const loader = document.getElementById('custom-loader');
+            if (loader && loader.style.display !== 'none') {
+                 loader.innerHTML = "<div style='text-align:center; color:#fff'>Плеер загружается долго...<br>Или фильм не найден.</div>";
+            }
+        }, 10000);
     </script>
 </body>
 </html>
