@@ -5,82 +5,104 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Кинозал</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Подключаем библиотеку Kinobox -->
+    <script src="https://kinobox.tv/kinobox.min.js"></script>
     <style>
-        body { background: #0f0f0f; color: #eee; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        .header { padding: 12px; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
-        .title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
-        .status { font-size: 10px; color: #888; }
+        body { 
+            background: #0f0f0f; 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: -apple-system, sans-serif;
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
         
-        .tabs { display: flex; overflow-x: auto; background: #141414; padding: 8px; gap: 8px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-        .tabs::-webkit-scrollbar { display: none; }
+        .header {
+            padding: 15px;
+            background: #151515;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+            border-bottom: 1px solid #333;
+            flex-shrink: 0;
+        }
+
+        /* Контейнер для плеера должен занимать все оставшееся место */
+        .kinobox_player {
+            flex-grow: 1;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
         
-        .tab-btn { background: #2a2a2a; border: none; color: #aaa; padding: 8px 16px; border-radius: 16px; font-size: 12px; white-space: nowrap; transition: 0.2s; cursor: pointer; flex-shrink: 0; }
-        .tab-btn.active { background: #3498db; color: #fff; font-weight: bold; }
-        
-        .player-wrapper { flex-grow: 1; position: relative; background: #000; }
-        iframe { width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0; }
-        
-        .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #444; }
+        /* Стили для сообщения об ошибке */
+        .error-msg {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #888;
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="title" id="movie-name">Загрузка...</div>
-        <div class="status">v2.0</div>
+    <div class="header" id="movie-title">
+        Загрузка...
     </div>
 
-    <!-- Кнопки выбора источника -->
-    <div class="tabs">
-        <button class="tab-btn active" onclick="play('alloha')">Источник 1</button>
-        <button class="tab-btn" onclick="play('videocdn')">Источник 2</button>
-        <button class="tab-btn" onclick="play('kodik')">Аниме/Сериалы</button>
-        <button class="tab-btn" onclick="play('collaps')">Запасной</button>
-    </div>
-
-    <div class="player-wrapper">
-        <div class="loader">Выбери источник выше</div>
-        <iframe id="player" allowfullscreen></iframe>
+    <!-- Сюда встроится плеер -->
+    <div class="kinobox_player" id="kinobox-wrapper"></div>
+    
+    <div class="error-msg" id="not-found">
+        😕 Не удалось найти плеер.<br>Попробуй другой фильм.
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
-        tg.enableClosingConfirmation(); // Спрашивать перед закрытием
+        tg.enableClosingConfirmation();
 
-        const params = new URLSearchParams(window.location.search);
-        const kpId = params.get('id');
-        const name = params.get('name');
+        // 1. Получаем ID с Кинопоиска из ссылки
+        const urlParams = new URLSearchParams(window.location.search);
+        // Kinobox умеет искать и по kinopoisk ID, и по imdb ID
+        const kpId = urlParams.get('id'); 
+        const name = urlParams.get('name');
 
-        document.getElementById('movie-name').innerText = name || "Фильм";
-
-        if (!kpId) {
-            document.querySelector('.player-wrapper').innerHTML = "<div style='padding:20px; text-align:center'>Ошибка: ID фильма не найден</div>";
+        if (name) {
+            document.getElementById('movie-title').innerText = name;
         }
 
-        // Ссылки на плееры (могут меняться, нужно следить за актуальностью зеркал)
-        const sources = {
-            'alloha': `https://api.linktodo.ws/embed/kp/${kpId}`, 
-            'videocdn': `https://11.svetacdn.in/cxz?kp_id=${kpId}`,
-            'kodik': `https://kodik.info/find-player?kinopoiskID=${kpId}`,
-            'collaps': `https://api.bhcesh.me/embed/${kpId}` // Часто меняется
-        };
-
-        function play(source) {
-            // UI
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-
-            // Logic
-            const frame = document.getElementById('player');
-            if (sources[source]) {
-                frame.src = sources[source];
-            } else {
-                alert("Источник временно недоступен");
-            }
+        // 2. Настраиваем и запускаем Kinobox
+        if (kpId) {
+            new Kinobox('.kinobox_player', {
+                search: {
+                    kinopoisk: kpId // Передаем ID
+                },
+                // Настройки внешнего вида
+                menu: {
+                    default: 'menu_list',
+                    mobile: 'menu_list',
+                    format: '{N} :: {T} ({Q})'
+                },
+                players: {
+                    // Здесь мы говорим скрипту, где искать
+                    // Он сам переберет Alloha, Kodik, VideoCDN и выберет рабочий
+                    alloha: {enable: true, position: 1},
+                    kodik: {enable: true, position: 2}, // Аниме
+                    videocdn: {enable: true, position: 3},
+                    collaps: {enable: true, position: 4},
+                    ashdi: {enable: true, position: 5}
+                },
+                notFoundMessage: 'Видео не найдено.'
+            }).init();
+        } else {
+            document.getElementById('not-found').innerText = "Ошибка: ID фильма не передан в ссылке";
+            document.getElementById('not-found').style.display = 'block';
         }
-
-        // Автозапуск первого
-        if (kpId) play('alloha');
     </script>
 </body>
 </html>
