@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Кинозал</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { background: #0f0f0f; color: #eee; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .header { padding: 12px; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
+        .title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+        .status { font-size: 10px; color: #888; }
+        
+        .tabs { display: flex; overflow-x: auto; background: #141414; padding: 8px; gap: 8px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .tabs::-webkit-scrollbar { display: none; }
+        
+        .tab-btn { background: #2a2a2a; border: none; color: #aaa; padding: 8px 16px; border-radius: 16px; font-size: 12px; white-space: nowrap; transition: 0.2s; cursor: pointer; flex-shrink: 0; }
+        .tab-btn.active { background: #3498db; color: #fff; font-weight: bold; }
+        
+        .player-wrapper { flex-grow: 1; position: relative; background: #000; }
+        iframe { width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0; }
+        
+        .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #444; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title" id="movie-name">Загрузка...</div>
+        <div class="status">v2.0</div>
+    </div>
+
+    <!-- Кнопки выбора источника -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="play('alloha')">Источник 1</button>
+        <button class="tab-btn" onclick="play('videocdn')">Источник 2</button>
+        <button class="tab-btn" onclick="play('kodik')">Аниме/Сериалы</button>
+        <button class="tab-btn" onclick="play('collaps')">Запасной</button>
+    </div>
+
+    <div class="player-wrapper">
+        <div class="loader">Выбери источник выше</div>
+        <iframe id="player" allowfullscreen></iframe>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.enableClosingConfirmation(); // Спрашивать перед закрытием
+
+        const params = new URLSearchParams(window.location.search);
+        const kpId = params.get('id');
+        const name = params.get('name');
+
+        document.getElementById('movie-name').innerText = name || "Фильм";
+
+        if (!kpId) {
+            document.querySelector('.player-wrapper').innerHTML = "<div style='padding:20px; text-align:center'>Ошибка: ID фильма не найден</div>";
+        }
+
+        // Ссылки на плееры (могут меняться, нужно следить за актуальностью зеркал)
+        const sources = {
+            'alloha': `https://api.linktodo.ws/embed/kp/${kpId}`, 
+            'videocdn': `https://11.svetacdn.in/cxz?kp_id=${kpId}`,
+            'kodik': `https://kodik.info/find-player?kinopoiskID=${kpId}`,
+            'collaps': `https://api.bhcesh.me/embed/${kpId}` // Часто меняется
+        };
+
+        function play(source) {
+            // UI
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Logic
+            const frame = document.getElementById('player');
+            if (sources[source]) {
+                frame.src = sources[source];
+            } else {
+                alert("Источник временно недоступен");
+            }
+        }
+
+        // Автозапуск первого
+        if (kpId) play('alloha');
+    </script>
+</body>
+</html>
